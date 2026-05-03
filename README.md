@@ -107,6 +107,10 @@ go vet ./...
 go test -race ./...
 ```
 
+## License
+
+MIT License. See [LICENSE](LICENSE).
+
 ## GitHub And Release Scripts
 
 This repository includes GitHub-ready automation:

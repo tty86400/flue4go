@@ -192,3 +192,7 @@ Linux/macOS：
 ./scripts/check.sh
 ./scripts/build.sh
 ```
+
+## 开源协议
+
+本项目使用 MIT License，详见 [LICENSE](LICENSE)。
