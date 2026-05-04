@@ -13,18 +13,25 @@ Flue4Go is designed so future coding agents can extend it without reverse-engine
 | Remote sandbox connector | Implement `SandboxAPI` and wrap it with `NewRemoteEnv`. |
 | Persistence | Implement `SessionStore`. |
 | Domain tool | Provide `Tool{Name, Description, Parameters, Execute}`. |
+| Tool approval | Set `Tool.RequiresApproval` and resume with `Session.Resume`. |
 | HTTP agent | Register with `Registry.Handle`. |
 | Skill pack | Add `.agents/skills/<name>/SKILL.md`. |
 | Role | Add `roles/<name>.md`. |
 | History compaction | Implement `Compactor`. |
+| Guardrails | Implement `Guardrail` and attach it through `AgentConfig.Guardrails` or `WithGuardrails`. |
+| Observability | Implement `Tracer` or consume `StreamEvent{Type: "trace"}`. |
+| Durable execution | Use a `SessionStore` that persists `RunState`, `Checkpoint`, and `PendingApprovals`; recover with `Session.ResumeRun` or `Session.Resume`. |
+| Multi-agent handoff | Add target agents to `AgentConfig.Handoffs` and use the built-in `handoff` tool. |
+| Streaming model | Implement `StreamingModel` and call `PromptStream` or pass `WithStream`. |
 
 ## Agent Development Checklist
 
 1. Add a focused test for the desired runtime behavior.
 2. Extend the smallest interface that owns that behavior.
 3. Keep provider-specific code outside the core package.
-4. Run `go test ./...`.
-5. Update docs when changing public APIs.
+4. Add runtime events or checkpoints for behavior that affects tools, approvals, or recovery.
+5. Run `go test ./...`.
+6. Update docs when changing public APIs.
 
 ## Workspace Convention
 

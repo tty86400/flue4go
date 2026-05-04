@@ -32,6 +32,12 @@
 | MCP tools | `mcp.go`, `mcp_test.go` | 已完成 |
 | CLI | `cmd/fluego/main.go` | 已完成 |
 | AI-agent support | `.agents/skills/framework-maintainer/SKILL.md`, `docs/zh-CN/AI_AGENT_SUPPORT.md` | 已完成 |
+| Guardrails 输入/输出/工具安全校验 | `Guardrail`, `GuardrailFunc`, `GuardrailStage*`, `runtime_features_test.go` | 已完成 |
+| Tracing/Observability | `TraceEvent`, `Tracer`, `TracerFunc`, `runtime_features_test.go` | 已完成 |
+| 人机协作审批暂停/恢复 | `Tool.RequiresApproval`, `ApprovalRequest`, `ApprovalDecision`, `Session.Resume`, `runtime_features_test.go` | 已完成 |
+| Durable Execution 基础能力 | `RunState`, `Checkpoint`, `Session.ResumeRun`, `SessionData.Runs`, `SessionData.Checkpoints`, `runtime_features_test.go` | 已完成 |
+| 多 Agent Handoff | `AgentConfig.Handoffs`, 内置 `handoff` 工具, `HandoffRecord`, `runtime_features_test.go` | 已完成 |
+| Streaming | `StreamingModel`, `PromptStream`, `StreamEvent`, `RequestContext.Emit`, `http_test.go` | 已完成 |
 
 ## 验证命令
 

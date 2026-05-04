@@ -19,7 +19,7 @@ const (
 )
 
 var builtinToolNames = map[string]struct{}{
-	"read": {}, "write": {}, "edit": {}, "bash": {}, "grep": {}, "glob": {}, "task": {},
+	"read": {}, "write": {}, "edit": {}, "bash": {}, "grep": {}, "glob": {}, "task": {}, "handoff": {},
 }
 
 // createBuiltinTools builds the default tool belt.
@@ -27,7 +27,7 @@ var builtinToolNames = map[string]struct{}{
 // 中文说明：这些工具是上游 Flue 的核心体验：模型能读文件、写文件、
 // 精确替换、执行命令、搜索文件、分派子任务。所有工具都通过 Env 执行，
 // 因此安全边界仍然由沙箱控制。
-func createBuiltinTools(env Env, runTask func(context.Context, string, PromptOptions) (PromptResponse, error)) []Tool {
+func createBuiltinTools(env Env, runTask func(context.Context, string, PromptOptions) (PromptResponse, error), runHandoff func(context.Context, HandoffRequest, PromptOptions) (HandoffResult, error)) []Tool {
 	return []Tool{
 		readTool(env),
 		writeTool(env),
@@ -36,6 +36,7 @@ func createBuiltinTools(env Env, runTask func(context.Context, string, PromptOpt
 		grepTool(env),
 		globTool(env),
 		taskTool(runTask),
+		handoffTool(runHandoff),
 	}
 }
 
@@ -223,6 +224,30 @@ func taskTool(runTask func(context.Context, string, PromptOptions) (PromptRespon
 				return "", err
 			}
 			return resp.Text, nil
+		},
+	}
+}
+
+func handoffTool(runHandoff func(context.Context, HandoffRequest, PromptOptions) (HandoffResult, error)) Tool {
+	return Tool{
+		Name:        "handoff",
+		Description: "Transfer work to a named agent and return its result.",
+		Parameters:  map[string]any{"type": "object"},
+		Execute: func(ctx context.Context, args map[string]any) (string, error) {
+			target := stringArg(args, "target")
+			prompt := stringArg(args, "prompt")
+			if target == "" || prompt == "" {
+				return "", errors.New("target and prompt are required")
+			}
+			result, err := runHandoff(ctx, HandoffRequest{
+				ToAgentID: target,
+				Prompt:    prompt,
+				Summary:   stringArg(args, "summary"),
+			}, PromptOptions{Role: stringArg(args, "role")})
+			if err != nil {
+				return "", err
+			}
+			return result.Text, nil
 		},
 	}
 }

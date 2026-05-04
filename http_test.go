@@ -84,3 +84,32 @@ func TestHTTPServerSupportsWebhookAcceptedAndSSE(t *testing.T) {
 		t.Fatalf("unexpected sse body: %s", body)
 	}
 }
+
+func TestHTTPServerStreamsHandlerEventsOverSSE(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	registry.Handle("stream", Triggers{Webhook: true}, func(ctx context.Context, req RequestContext) (any, error) {
+		if req.Emit == nil {
+			t.Fatal("expected stream emitter")
+		}
+		if err := req.Emit(ctx, StreamEvent{Type: StreamEventToken, Delta: "hello"}); err != nil {
+			return nil, err
+		}
+		return map[string]any{"ok": true}, nil
+	})
+	server := NewHTTPServer(registry, HTTPServerOptions{})
+
+	req := httptest.NewRequest(http.MethodPost, "/agents/stream/abc", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sse status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "event: token") || !strings.Contains(body, `"delta":"hello"`) {
+		t.Fatalf("missing streamed token event: %s", body)
+	}
+}

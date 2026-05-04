@@ -23,6 +23,12 @@ Experimental MVP. The current implementation is intentionally focused on the cor
 | Streamable HTTP MCP tool adapter | Implemented |
 | Message-history compaction hook | Implemented |
 | Remote/container sandbox wrapper | Implemented |
+| Guardrails for input/output/tool calls | Implemented |
+| Tracing/observability events | Implemented |
+| Human approval pause/resume for tools | Implemented |
+| Durable run state, checkpoints, and `ResumeRun` | Implemented |
+| Multi-agent handoff tool | Implemented |
+| Token/runtime streaming callbacks and SSE bridge | Implemented |
 | CLI workspace init/inspect/example server | Implemented |
 | Cloudflare build target and hot build/watch loop | Go-specific divergence, documented |
 
@@ -38,11 +44,12 @@ github.com/xwlv/flue4go
   |
   +-- Registry -----> HTTP Server
   |
-  +-- Agent
+      +-- Agent
        |
        +-- SessionStore
        +-- Env sandbox
        +-- Model adapter
+       +-- Guardrails / Tracer / Approval
        +-- Context discovery
        +-- Built-in + custom tools
               |
@@ -79,6 +86,34 @@ session, _ := agent.Session(ctx, "customer-123")
 result, _ := session.Prompt(ctx, "Help this customer.")
 ```
 
+The same `AgentConfig` can layer in runtime control hooks: `Guardrails`
+validate input/output/tool calls, `Tracer` receives structured lifecycle
+events, sensitive tools can pause with `Tool.RequiresApproval` and resume with
+`Session.Resume`, and token-capable adapters can emit deltas through
+`PromptStream`.
+
+```go
+guardrail := flue.GuardrailFunc(func(ctx context.Context, req flue.GuardrailRequest) (flue.GuardrailResult, error) {
+    if req.Stage == flue.GuardrailStageTool && req.ToolCall != nil && req.ToolCall.Name == "delete_file" {
+        return flue.GuardrailResult{Allowed: false, Reason: "delete blocked"}, nil
+    }
+    return flue.GuardrailResult{Allowed: true}, nil
+})
+
+agent, _ := flue.NewAgent(ctx, flue.AgentConfig{
+    Model:      model,
+    Env:        flue.NewMemoryEnv(),
+    Guardrails: []flue.Guardrail{guardrail},
+    Tracer:     flue.TracerFunc(func(ctx context.Context, event flue.TraceEvent) { log.Println(event.Type) }),
+})
+session, _ := agent.Session(ctx, "customer-123")
+resp, _ := session.PromptStream(ctx, "Help this customer.", func(ctx context.Context, event flue.StreamEvent) error {
+    // event.Type can be token, trace, result, error, or idle.
+    return nil
+})
+_ = resp
+```
+
 ## CLI
 
 ```powershell
@@ -86,6 +121,7 @@ go run ./cmd/fluego init --workspace .flue
 go run ./cmd/fluego inspect --workspace .flue
 go run ./cmd/fluego list --url http://localhost:3000
 go run ./cmd/fluego run echo --id test --url http://localhost:3000 --payload '{"name":"World"}'
+go run ./cmd/fluego run echo --id test --url http://localhost:3000 --payload '{"name":"World"}' --sse
 go run ./cmd/fluego build --package ./cmd/my-agent --output ./dist/my-agent.exe
 go run ./cmd/fluego serve-example --addr :3000
 ```
@@ -95,9 +131,9 @@ go run ./cmd/fluego serve-example --addr :3000
 | Priority | Implementation choice |
 |---|---|
 | Security | Local paths are confined below sandbox root; HTTP route ids are validated; request bodies are size-limited. |
-| Performance | Memory sandbox and store avoid process overhead; tool outputs are truncated; interfaces permit provider-specific streaming later. |
+| Performance | Memory sandbox and store avoid process overhead; tool outputs are truncated; streaming models can emit token deltas. |
 | Go best practice | Compiled handler registration, small interfaces, context-aware calls, standard library first. |
-| AI-agent sustainability | Stable files, focused APIs, clear docs, tests covering harness behavior, and skills/roles/AGENTS compatibility. |
+| AI-agent sustainability | Stable files, focused APIs, guardrails, trace events, checkpoints, tests covering harness behavior, and skills/roles/AGENTS compatibility. |
 
 ## Development
 

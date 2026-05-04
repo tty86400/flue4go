@@ -77,6 +77,50 @@ func (f ModelFunc) Generate(ctx context.Context, req ModelRequest) (ModelRespons
 	return f(ctx, req)
 }
 
+// StreamEmitter receives incremental runtime output such as model token deltas
+// and trace events.
+type StreamEmitter func(context.Context, StreamEvent) error
+
+// StreamingModel can return model output incrementally while still producing a
+// final provider-neutral ModelResponse for the normal tool loop.
+type StreamingModel interface {
+	Generate(context.Context, ModelRequest) (ModelResponse, error)
+	Stream(context.Context, ModelRequest, StreamEmitter) (ModelResponse, error)
+}
+
+// StreamingModelFunc adapts a streaming function into a Model.
+type StreamingModelFunc func(context.Context, ModelRequest, StreamEmitter) (ModelResponse, error)
+
+// Generate implements Model by collecting only the final response.
+func (f StreamingModelFunc) Generate(ctx context.Context, req ModelRequest) (ModelResponse, error) {
+	return f(ctx, req, nil)
+}
+
+// Stream implements StreamingModel.
+func (f StreamingModelFunc) Stream(ctx context.Context, req ModelRequest, emit StreamEmitter) (ModelResponse, error) {
+	return f(ctx, req, emit)
+}
+
+// StreamEventType identifies streamed runtime output.
+type StreamEventType string
+
+const (
+	StreamEventToken  StreamEventType = "token"
+	StreamEventTrace  StreamEventType = "trace"
+	StreamEventResult StreamEventType = "result"
+	StreamEventError  StreamEventType = "error"
+	StreamEventIdle   StreamEventType = "idle"
+)
+
+// StreamEvent is a provider-neutral event suitable for SSE or direct callbacks.
+type StreamEvent struct {
+	Type  StreamEventType `json:"type"`
+	Delta string          `json:"delta,omitempty"`
+	Trace *TraceEvent     `json:"trace,omitempty"`
+	Data  any             `json:"data,omitempty"`
+	Error string          `json:"error,omitempty"`
+}
+
 // Compactor summarizes older messages when a session history exceeds its
 // configured budget.
 type Compactor interface {
@@ -104,7 +148,10 @@ type Tool struct {
 	Name        string
 	Description string
 	Parameters  map[string]any
-	Execute     func(context.Context, map[string]any) (string, error)
+	// RequiresApproval pauses before Execute unless a human or policy decision
+	// approves the tool call.
+	RequiresApproval bool
+	Execute          func(context.Context, map[string]any) (string, error)
 }
 
 // Command is an executable capability that can be scoped to a prompt, skill, or
@@ -207,6 +254,10 @@ type PromptOptions struct {
 	Commands []Command
 	Tools    []Tool
 	Args     map[string]any
+	// Guardrails are appended to AgentConfig.Guardrails for this call.
+	Guardrails []Guardrail
+	// Stream receives incremental token/runtime events for this call.
+	Stream StreamEmitter
 }
 
 // PromptOption mutates PromptOptions.
@@ -233,6 +284,14 @@ func WithCommands(commands ...Command) PromptOption {
 
 // WithArgs supplies skill arguments.
 func WithArgs(args map[string]any) PromptOption { return func(o *PromptOptions) { o.Args = args } }
+
+// WithGuardrails adds call-scoped guardrails.
+func WithGuardrails(guardrails ...Guardrail) PromptOption {
+	return func(o *PromptOptions) { o.Guardrails = guardrails }
+}
+
+// WithStream streams incremental model/runtime events for one call.
+func WithStream(emit StreamEmitter) PromptOption { return func(o *PromptOptions) { o.Stream = emit } }
 
 func collectOptions(opts []PromptOption) PromptOptions {
 	var out PromptOptions

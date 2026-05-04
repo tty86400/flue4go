@@ -32,6 +32,12 @@ Use Go to recreate the core functionality of `withastro/flue`, with Go-idiomatic
 | Cloudflare/Node build plugins | `docs/UPSTREAM_PARITY.md` | Intentionally diverged for Go compiled handlers |
 | Compaction | `Compactor`, `CompactionConfig`, `compaction_test.go` | Done |
 | Remote/container sandbox connector | `SandboxAPI`, `NewRemoteEnv`, `remote_env_test.go` | Done |
+| Guardrails for input/output/tool safety | `Guardrail`, `GuardrailFunc`, `GuardrailStage*`, `runtime_features_test.go` | Done |
+| Tracing/observability | `TraceEvent`, `Tracer`, `TracerFunc`, `runtime_features_test.go` | Done |
+| Human-in-the-loop approval | `Tool.RequiresApproval`, `ApprovalRequest`, `ApprovalDecision`, `Session.Resume`, `runtime_features_test.go` | Done |
+| Durable execution basics | `RunState`, `Checkpoint`, `Session.ResumeRun`, `SessionData.Runs`, `SessionData.Checkpoints`, `runtime_features_test.go` | Done |
+| Multi-agent handoff | `AgentConfig.Handoffs`, built-in `handoff`, `HandoffRecord`, `runtime_features_test.go` | Done |
+| Token/runtime streaming | `StreamingModel`, `PromptStream`, `StreamEvent`, `RequestContext.Emit`, `http_test.go` | Done |
 
 ### Chinese Documentation Goal
 

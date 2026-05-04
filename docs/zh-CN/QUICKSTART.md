@@ -99,6 +99,26 @@ if err != nil {
 resp, err := session.Prompt(ctx, "请总结这个问题")
 ```
 
+这个模型循环可以直接接入运行时控制能力，不需要换一套入口：安全策略放进 `Guardrail`，运行过程交给 `Tracer` 记录，敏感工具用 `RequiresApproval` 暂停，流式模型实现 `StreamingModel` 后通过 `PromptStream` 返回 token 事件。
+
+```go
+guardrail := flue.GuardrailFunc(func(ctx context.Context, req flue.GuardrailRequest) (flue.GuardrailResult, error) {
+	if req.Stage == flue.GuardrailStageInput && req.Content == "" {
+		return flue.GuardrailResult{Allowed: false, Reason: "empty input"}, nil
+	}
+	return flue.GuardrailResult{Allowed: true}, nil
+})
+
+agent, err := flue.NewAgent(ctx, flue.AgentConfig{
+	ID:         "assistant",
+	Model:      model,
+	ModelName:  "local/mock",
+	Env:        flue.NewMemoryEnv(),
+	Guardrails: []flue.Guardrail{guardrail},
+	Tracer:     flue.TracerFunc(func(ctx context.Context, event flue.TraceEvent) {}),
+})
+```
+
 ## 6. 什么时候用哪个 Env
 
 | Env | 适合场景 |
@@ -116,6 +136,9 @@ resp, err := session.Prompt(ctx, "请总结这个问题")
 | 本地文件读不到 | `NewLocalEnv(root)` 的 root 是否正确 |
 | HTTP 404 | agent 是否注册，是否 `Webhook: true` |
 | 模型不调用工具 | `ModelRequest.Tools` 是否传给模型 provider |
+| Guardrail 阻断 | 检查返回的 `GuardrailError.Stage` 和 `Reason` |
+| 审批后无法恢复 | prompt-scoped 工具需要在 `Session.Resume` 时再次传入 |
+| 没有 token 流 | 模型适配器是否实现 `StreamingModel` 并调用 `PromptStream` |
 
 ## 8. GitHub CI 和发布
 

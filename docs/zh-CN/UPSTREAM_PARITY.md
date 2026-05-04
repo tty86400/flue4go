@@ -16,7 +16,24 @@
 | MCP adapter | 已实现 | `mcp.go`, `mcp_test.go` |
 | Compaction hook | 已实现 | `types.go`, `session.go`, `compaction_test.go` |
 | 远程/container sandbox wrapper | 已实现 | `remote_env.go`, `remote_env_test.go` |
+| 输入/输出/工具调用 Guardrails | 已实现 | `Guardrail`, `GuardrailFunc`, `GuardrailStage*`, `runtime_features_test.go` |
+| Tracing / Observability 事件 | 已实现 | `TraceEvent`, `Tracer`, `TracerFunc`, `session.go`, `runtime_features_test.go` |
+| 人机协作审批暂停/恢复 | 已实现 | `Tool.RequiresApproval`, `ApprovalRequest`, `Session.Resume`, `runtime_features_test.go` |
+| Durable run state 和 checkpoint | 已实现 | `RunState`, `Checkpoint`, `Session.ResumeRun`, `SessionData.Runs`, `SessionData.Checkpoints`, `runtime_features_test.go` |
+| 多 Agent handoff | 已实现 | 内置 `handoff` 工具、`AgentConfig.Handoffs`, `HandoffRecord`, `runtime_features_test.go` |
+| Token/runtime streaming | 已实现 | `StreamingModel`, `PromptStream`, `StreamEvent`, HTTP `RequestContext.Emit`, `http_test.go` |
 | Node/Cloudflare build plugin | Go 版本不复制 | 用 `go build` 和编译期注册替代 |
+
+## 参考 LangGraph 补齐的运行时能力
+
+| 能力 | Flue4Go 入口 | 当前边界 |
+|---|---|---|
+| Guardrails | 在输入、最终输出、工具执行前运行 `Guardrail`。 | 不内置 PII 或模型分类器；业务侧自行提供确定性或模型型 `Guardrail`。 |
+| Tracing / Observability | `Tracer` 接收 run/model/tool/checkpoint/approval/handoff 生命周期事件。 | 不绑定外部 exporter；应用层可桥接到日志、OpenTelemetry、LangSmith 或数据库。 |
+| 人机协作 | 工具设置 `RequiresApproval` 后会暂停，持久化 `ApprovalRequest`，再用 `Session.Resume` 继续。 | 如果暂停的是 prompt-scoped 自定义工具，恢复时需要再次传入这些工具；Agent 级工具可直接恢复。 |
+| Durable Execution | `SessionData` 保存 `RunState`、`Checkpoint`、`PendingApprovals` 和 handoff lineage；`Session.ResumeRun` 会从最新 checkpoint 恢复。 | 这是 Flue4Go prompt loop 的步骤 checkpoint，不是分布式 lease；有副作用的工具仍应保持幂等。 |
+| 多 Agent Handoff | 内置 `handoff` 工具把任务交给 `AgentConfig.Handoffs` 中的目标 Agent，并记录 lineage。 | handoff 是显式 tool-based 交接，不包含 graph supervisor 调度器。 |
+| Streaming | `StreamingModel` 产出 token delta；`PromptStream` 和 HTTP SSE 转发 `StreamEvent`。 | 是否有 token 流取决于模型适配器；普通 `Model` 仍返回最终文本。 |
 
 ## 为什么不复制 Node/Cloudflare build plugin
 

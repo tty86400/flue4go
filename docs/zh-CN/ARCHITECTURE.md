@@ -20,17 +20,20 @@ HTTP request
         v
 +----------------+
 | Agent          |  管理模型、沙箱、上下文、会话
-+---+---+---+----+
-    |   |   |
-    |   |   +----------------+
-    |   |                    v
-    |   |              Model adapter
-    |   |                    |
-    |   v                    v
-    | Env sandbox       provider call
-    |
++---+---+---+---+---+----+
+    |   |   |   |   |
+    |   |   |   |   +----------------+
+    |   |   |   |                    v
+    |   |   |   |              Model adapter
+    |   |   |   |                    |
+    |   |   |   v                    v
+    |   |   | Tracer            provider call
+    |   |   v
+    |   | Guardrails
+    |   v
+    | Env sandbox
     v
-SessionStore
+SessionStore / Checkpoints
 ```
 
 ## 核心对象
@@ -45,23 +48,34 @@ SessionStore
 | `Tool` | 工具 | 模型可以调用的函数 |
 | `SessionStore` | 存储 | 保存会话历史 |
 | `Compactor` | 历史压缩器 | 历史太长时总结旧消息 |
+| `Guardrail` | 安全校验 | 输入、输出、工具调用前拦截 |
+| `Tracer` | 观测事件 | 调试 run/model/tool/checkpoint |
+| `StreamingModel` | 流式模型 | 返回 token delta 和最终结果 |
 
 ## Session 调用链
 
 ```text
 Session.Prompt("任务")
   |
+  +-- 创建 RunState
+  +-- 执行输入 Guardrail
   +-- 把用户消息追加到历史
+  +-- 保存 checkpoint
   +-- 组装 system prompt、roles、skills、tools
-  +-- 调用 Model.Generate
+  +-- 调用 Model.Generate 或 StreamingModel.Stream
+  +-- 产出 trace event / stream event
   +-- 如果模型要求 tool call：
   |     |
+  |     +-- 执行工具 Guardrail
+  |     +-- 如工具 RequiresApproval，则暂停并保存 ApprovalRequest
   |     +-- 在 Env 中执行工具
+  |     +-- 或用 handoff 工具交给另一个 Agent
   |     +-- 把工具结果追加到历史
   |     +-- 再次调用模型
   |
+  +-- 执行输出 Guardrail
   +-- 模型返回最终文本
-  +-- 保存 SessionData
+  +-- 保存带 checkpoint 的 SessionData
 ```
 
 ## 与上游 Flue 的关键差异

@@ -10,6 +10,9 @@ Agent Harness 的风险点通常不是“模型会不会回答错”，而是模
 | HTTP 路由 | agent name 和 id 必须是受限字符 |
 | HTTP 请求体 | JSON body 限制为 1 MiB |
 | 工具输出 | read/grep/glob/bash 有数量或大小限制 |
+| Runtime Guardrails | `Guardrail` 可以阻断或改写输入、输出、工具调用 |
+| 敏感工具 | `Tool.RequiresApproval` 会在副作用执行前暂停 |
+| 审计能力 | `Tracer` 和 checkpoint 暴露 model/tool/approval 事件 |
 | 密钥 | 核心 runtime 不保存模型 API key |
 | 文件持久化 | `FileStore` 清洗 key，使用较严格文件权限 |
 | MCP | MCP header 由可信 Go 代码传入，不暴露给 prompt |
@@ -21,8 +24,9 @@ Agent Harness 的风险点通常不是“模型会不会回答错”，而是模
 | 面向公网的 Agent | 默认只暴露 `Webhook: true` 的 handler |
 | 需要跑 shell | 优先限制到专用目录，避免把用户主目录挂进去 |
 | 需要访问密钥 | 在 Go handler 中注入，不写进 `AGENTS.md` |
-| 自定义工具 | 参数必须校验，外部调用必须有权限控制 |
-| 生产持久化 | 使用加密或访问受控的存储实现 `SessionStore` |
+| 自定义工具 | 参数必须校验，外部调用必须有权限控制；敏感工具设置 `RequiresApproval` |
+| 生产持久化 | 使用加密或访问受控的存储实现 `SessionStore`，覆盖 run state、checkpoint、approval |
+| 业务安全策略 | 用确定性或模型型 `Guardrail` 表达，不只依赖 prompt |
 
 ## 新手最容易踩的坑
 
@@ -37,6 +41,7 @@ Agent Harness 的风险点通常不是“模型会不会回答错”，而是模
 
 - shell 命令 allowlist/denylist
 - 每个工具单独 timeout 和 byte budget
-- 审计日志
+- 外部 tracing/exporter adapter
 - MCP server 权限策略
 - 按租户隔离的生产 `SessionStore`
+- 生产 durable execution 的分布式 lease/retry

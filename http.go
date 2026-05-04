@@ -26,6 +26,9 @@ type RequestContext struct {
 	Name    string
 	Payload map[string]any
 	Env     map[string]string
+	// Emit is set for SSE requests so handlers can forward token, trace, or
+	// custom runtime events before the final result event is written.
+	Emit StreamEmitter
 }
 
 // Handler is a registered Go-native agent endpoint.
@@ -191,6 +194,14 @@ func writeSSE(w http.ResponseWriter, r *http.Request, agent registeredAgent, req
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
+	req.Emit = func(ctx context.Context, event StreamEvent) error {
+		eventName := string(event.Type)
+		if eventName == "" {
+			eventName = "event"
+		}
+		writeSSEEvent(w, eventName, event)
+		return ctx.Err()
+	}
 	result, err := agent.Handler(r.Context(), req)
 	if err != nil {
 		writeSSEEvent(w, "error", map[string]any{"error": map[string]string{"code": "handler_error", "message": err.Error()}})

@@ -17,14 +17,14 @@ HTTP request --->| Registry       |
                          v
                  +----------------+
                  | Agent          |
-                 +---+---+---+----+
-                     |   |   |
-          +----------+   |   +--------------+
-          v              v                  v
-    SessionStore     Env sandbox       Model adapter
-          |              |                  |
-          v              v                  v
-    history/state   files/shell/tools  provider call
+                 +---+---+---+---+---+----+
+                     |   |   |   |   |
+          +----------+   |   |   |   +--------------+
+          v              v   v   v                  v
+    SessionStore     Env   Guardrails Tracer   Model adapter
+          |              |   |   |                  |
+          v              v   v   v                  v
+    runs/checkpoints files/tools policy events      provider call
 ```
 
 ## Key Interfaces
@@ -36,19 +36,27 @@ HTTP request --->| Registry       |
 | `SessionStore` | Persistence for conversation history. |
 | `Tool` | Callable model capability. |
 | `Registry` | HTTP-facing agent handler registration. |
+| `Guardrail` | Input, output, and tool-call safety validation. |
+| `Tracer` | Structured runtime observability events. |
+| `StreamingModel` | Token/runtime streaming model adapter. |
 
 ## Runtime Flow
 
 ```text
 Session.Prompt
   |
-  +-- append user message
+  +-- create RunState
+  +-- run input guardrails
+  +-- append user message and checkpoint
   +-- discover scoped tools
-  +-- call Model.Generate
-  +-- execute tool calls in Env
+  +-- call Model.Generate or StreamingModel.Stream
+  +-- emit trace events
+  +-- run tool guardrails and optional approval pause
+  +-- execute tool calls in Env or handoff target Agent
   +-- append tool results
   +-- repeat until assistant returns final text
-  +-- persist SessionData
+  +-- run output guardrails
+  +-- persist checkpointed SessionData
 ```
 
 ## Upstream Parity Strategy

@@ -13,6 +13,7 @@ Flue4Go Agent
   +-- Session 会话记忆
   +-- Env 沙箱文件/命令
   +-- Tools 工具调用
+  +-- Guardrails / Tracing / Approval
   +-- Skills/roles/AGENTS.md 上下文
   +-- Model 模型适配器
 ```
@@ -31,6 +32,12 @@ Flue4Go Agent
 | 文件持久化 | 已实现 | 会话记录可以保存到 JSON 文件 |
 | MCP 工具适配 | 已实现 | 可以把远程 MCP 工具转成 Flue4Go 工具 |
 | CLI | 已实现 | 初始化、检查、调用、构建、示例服务 |
+| Guardrails | 已实现 | 可以在输入、输出、工具调用前做安全校验 |
+| Tracing / Observability | 已实现 | Agent 运行过程会产出结构化事件 |
+| 人机协作 | 已实现 | 敏感工具可暂停，审批后继续执行 |
+| Durable Execution | 已实现基础版 | 保存 run state、checkpoint、pending approval，并可 `ResumeRun` |
+| 多 Agent Handoff | 已实现 | 可用 `handoff` 工具交接给另一个 Agent |
+| Streaming | 已实现 | 支持模型 token callback 和 HTTP SSE 事件桥接 |
 
 ## 5 分钟上手
 
@@ -73,6 +80,7 @@ go run ./cmd/fluego serve-example --addr :3000
 ```powershell
 go run ./cmd/fluego list --url http://localhost:3000
 go run ./cmd/fluego run echo --id test --url http://localhost:3000 --payload '{"name":"World"}'
+go run ./cmd/fluego run echo --id test --url http://localhost:3000 --payload '{"name":"World"}' --sse
 ```
 
 ### 4. 在自己的 Go 代码里注册 Agent
@@ -135,6 +143,29 @@ if err != nil {
 result, err := session.Prompt(ctx, "请帮客户总结问题")
 ```
 
+同一个 `AgentConfig` 可以继续挂上安全、观测和恢复相关能力：`Guardrails` 负责输入/输出/工具调用校验，`Tracer` 接收结构化事件，敏感工具可通过 `Tool.RequiresApproval` 暂停后再 `Session.Resume`，需要 token 流时使用 `PromptStream`。
+
+```go
+guardrail := flue.GuardrailFunc(func(ctx context.Context, req flue.GuardrailRequest) (flue.GuardrailResult, error) {
+	if req.Stage == flue.GuardrailStageTool && req.ToolCall != nil && req.ToolCall.Name == "delete_file" {
+		return flue.GuardrailResult{Allowed: false, Reason: "delete blocked"}, nil
+	}
+	return flue.GuardrailResult{Allowed: true}, nil
+})
+
+agent, _ := flue.NewAgent(ctx, flue.AgentConfig{
+	Model:      model,
+	Env:        flue.NewMemoryEnv(),
+	Guardrails: []flue.Guardrail{guardrail},
+	Tracer:     flue.TracerFunc(func(ctx context.Context, event flue.TraceEvent) {}),
+})
+
+session, _ := agent.Session(ctx, "customer-123")
+_, _ = session.PromptStream(ctx, "请流式返回", func(ctx context.Context, event flue.StreamEvent) error {
+	return nil
+})
+```
+
 ## 新手学习顺序
 
 | 顺序 | 文件 | 学什么 |
@@ -154,8 +185,8 @@ result, err := session.Prompt(ctx, "请帮客户总结问题")
 |---|---|
 | Go 最佳实践 | 用编译期注册 Handler，不动态加载 TypeScript 文件 |
 | 安全优先 | `LocalEnv` 限制路径逃逸，HTTP 路由和请求体有限制 |
-| 性能优先 | 内存沙箱/内存存储用于轻量任务，工具输出有截断 |
-| 适合 AI Agent 后续开发 | 接口稳定、文档清晰、技能/角色/AGENTS 约定保留 |
+| 性能优先 | 内存沙箱/内存存储用于轻量任务，工具输出有截断，模型可流式输出 |
+| 适合 AI Agent 后续开发 | 接口稳定、文档清晰、Guardrails、Tracing、Checkpoint、技能/角色/AGENTS 约定保留 |
 
 ## 更多中文资料
 

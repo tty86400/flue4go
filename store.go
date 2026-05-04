@@ -13,11 +13,15 @@ import (
 
 // SessionData is the persisted conversation state for one session.
 type SessionData struct {
-	Version   int            `json:"version"`
-	Messages  []Message      `json:"messages"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
+	Version          int                        `json:"version"`
+	Messages         []Message                  `json:"messages"`
+	Metadata         map[string]any             `json:"metadata,omitempty"`
+	Runs             map[string]RunState        `json:"runs,omitempty"`
+	Checkpoints      []Checkpoint               `json:"checkpoints,omitempty"`
+	PendingApprovals map[string]ApprovalRequest `json:"pendingApprovals,omitempty"`
+	Handoffs         []HandoffRecord            `json:"handoffs,omitempty"`
+	CreatedAt        time.Time                  `json:"createdAt"`
+	UpdatedAt        time.Time                  `json:"updatedAt"`
 }
 
 // SessionStore persists session state. Implementations can back this with
@@ -73,10 +77,24 @@ func (s *MemoryStore) Delete(key string) error {
 func cloneSessionData(data SessionData) SessionData {
 	out := data
 	out.Messages = append([]Message(nil), data.Messages...)
+	out.Checkpoints = append([]Checkpoint(nil), data.Checkpoints...)
+	out.Handoffs = append([]HandoffRecord(nil), data.Handoffs...)
 	if data.Metadata != nil {
 		out.Metadata = map[string]any{}
 		for k, v := range data.Metadata {
 			out.Metadata[k] = v
+		}
+	}
+	if data.Runs != nil {
+		out.Runs = map[string]RunState{}
+		for k, v := range data.Runs {
+			out.Runs[k] = v
+		}
+	}
+	if data.PendingApprovals != nil {
+		out.PendingApprovals = map[string]ApprovalRequest{}
+		for k, v := range data.PendingApprovals {
+			out.PendingApprovals[k] = v
 		}
 	}
 	return out
